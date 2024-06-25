@@ -2,6 +2,18 @@
 
 This is a quick and dirty example of [Web MIDI](https://developer.mozilla.org/en-US/docs/Web/API/Web_MIDI_API) written in JavaScript in order to play with a `Launchpad Mini mk2`.
 
+## SUPPORTED MODELS
+
+The project has only been tested with the `Launchpad Mini mk2` but should work with the `Launchpad Mini mk1` and maybe the `Launchpad Mini mk3`.
+
+![Launchpad Mini mk2](doc/Novation_Launchpad_Mini_mk2.png)
+
+## DISCLAIMER
+
+This project is absolutely not affiliated with [Novation](https://novationmusic.com/) or [Focusrite](https://focusrite.com/).
+
+It was developed according to the programmer reference made available by Novation. You can find a copy of this reference in the `doc` directory.
+
 ## RUN
 
 Move to the `src` directory:
