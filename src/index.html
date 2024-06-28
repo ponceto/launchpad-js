@@ -1,23 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
     <head>
-        <title>Web MIDI · Launchpad Mini</title>
+        <title>Launchpad Mini controller</title>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <meta name="description" content="Web MIDI · Launchpad Mini">
-        <meta name="keywords" content="Web MIDI">
+        <meta name="description" content="Launchpad Mini controller">
+        <meta name="keywords" content="Web MIDI, Launchpad Mini">
         <meta name="author" content="Olivier Poncet">
-        <link rel="stylesheet" href="normalize.css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
         <link rel="stylesheet" href="style.css">
     </head>
     <body>
         <header>
-            <h1>Web MIDI</h1>
+            <h1>Launchpad Mini controller</h1>
         </header>
-        <main>
-            <h2>Launchpad Mini</h2>
+        <main class="container">
             <fieldset>
-                <legend>Controls</legend>
+                <legend>Launchpad Controls</legend>
                 <button id="lp-start">Start</button>
                 <button id="lp-reset">Reset</button>
                 <button id="lp-check">Check</button>
@@ -30,8 +29,8 @@
             </fieldset>
             <fieldset>
                 <legend>Console</legend>
-                <button id="con-flush">Flush</button>
-                <textarea id="con-textarea" rows="24" readonly></textarea>
+                <textarea id="log-panel" rows="16" readonly></textarea>
+                <button id="log-flush">Flush console</button>
             </fieldset>
         </main>
         <footer>

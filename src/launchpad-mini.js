@@ -84,9 +84,10 @@ class LaunchpadMini {
     }
 
     start() {
-        navigator.requestMIDIAccess().then(
+        const controller = this.controller;
+        navigator.requestMIDIAccess({ sysex: true }).then(
             (midi) => {
-                this.controller.print('MIDI access has been granted');
+                controller.print('MIDI access has been granted');
                 midi.inputs.forEach((input) => {
                     if(input.name.startsWith(this.name)) {
                         this.input = input;
@@ -98,33 +99,33 @@ class LaunchpadMini {
                     }
                 });
                 if(this.input != null) {
-                    this.controller.print('MIDI input was found for <' + this.name + '>');
+                    controller.print('MIDI input was found for <' + this.name + '>');
                     this.input.onmidimessage = (message) => {
                         const data = message.data;
                         switch(data[0] >> 4) {
                             case 0x8:
-                                this.controller.onNoteOff(data);
+                                controller.onNoteOff(data);
                                 break;
                             case 0x9:
-                                this.controller.onNoteOn(data);
+                                controller.onNoteOn(data);
                                 break;
                             case 0xa:
-                                this.controller.onAftertouch(data);
+                                controller.onAftertouch(data);
                                 break;
                             case 0xb:
-                                this.controller.onControlChange(data);
+                                controller.onControlChange(data);
                                 break;
                             case 0xc:
-                                this.controller.onProgramChange(data);
+                                controller.onProgramChange(data);
                                 break;
                             case 0xd:
-                                this.controller.onChannelPressure(data);
+                                controller.onChannelPressure(data);
                                 break;
                             case 0xe:
-                                this.controller.onPitchBend(data);
+                                controller.onPitchBend(data);
                                 break;
                             case 0xf:
-                                this.controller.onSystemControl(data);
+                                controller.onSystemControl(data);
                                 break;
                             default:
                                 break;
@@ -132,17 +133,17 @@ class LaunchpadMini {
                     };
                 }
                 else {
-                    this.controller.print('MIDI input was not found for <' + this.name + '>');
+                    controller.print('MIDI input was not found for <' + this.name + '>');
                 }
                 if(this.output != null) {
-                    this.controller.print('MIDI output was found for <' + this.name + '>');
+                    controller.print('MIDI output was found for <' + this.name + '>');
                 }
                 else {
-                    this.controller.print('MIDI output was not found for <' + this.name + '>');
+                    controller.print('MIDI output was not found for <' + this.name + '>');
                 }
             },
             (midi) => {
-                this.controller.print('MIDI access has been denied');
+                controller.print('MIDI access has been denied');
             }
         );
     }
@@ -179,11 +180,15 @@ class LaunchpadMini {
     }
 
     setPadOn(row, col, color) {
-        this.sendNoteOn(((16 * (row & 15)) + (col & 15)), color);
+        const note     = ((16 * (row & 15)) + (col & 15));
+        const velocity = color;
+        this.sendNoteOn(note, velocity);
     }
 
     setPadOff(row, col) {
-        this.sendNoteOff(((16 * (row & 15)) + (col & 15)), 0);
+        const note     = ((16 * (row & 15)) + (col & 15));
+        const velocity = 0;
+        this.sendNoteOff(note, velocity);
     }
 
     setGridLayout() {
@@ -221,8 +226,10 @@ class LaunchpadMini {
 // LaunchpadMiniGameOfLife
 // ---------------------------------------------------------------------------
 
-const GOL_EMPTY = 0;
-const GOL_ALIVE = 4;
+const GOL_IS_EMPTY  = 0;
+const GOL_IS_ALIVE  = 5;
+const GOL_MIN_ALIVE = 2;
+const GOL_MAX_ALIVE = 3;
 
 class LaunchpadMiniGameOfLife {
     constructor(launchpad) {
@@ -232,17 +239,21 @@ class LaunchpadMiniGameOfLife {
         this.state      = new Uint8Array(this.rows * this.cols);
         this.interval   = null;
         this.timeout    = 250;
-        this.colors     = [];
-        this.colors[0]  = launchpad.color(0, 0);
-        this.colors[1]  = launchpad.color(1, 0);
-        this.colors[2]  = launchpad.color(2, 0);
-        this.colors[3]  = launchpad.color(3, 0);
-        this.colors[4]  = launchpad.color(0, 3);
+        this.palette    = new Uint8Array(GOL_IS_ALIVE + 1);
+        this.palette[0] = launchpad.color(0, 0);
+        this.palette[1] = launchpad.color(1, 0);
+        this.palette[2] = launchpad.color(2, 0);
+        this.palette[3] = launchpad.color(3, 0);
+        this.palette[4] = launchpad.color(3, 3);
+        this.palette[5] = launchpad.color(0, 3);
         this.reset();
     }
 
     set(row, col, value) {
-        this.launchpad.setPadOn(row, col, this.colors[value]);
+        if(value < GOL_IS_EMPTY) value = GOL_IS_EMPTY;
+        if(value > GOL_IS_ALIVE) value = GOL_IS_ALIVE;
+        this.state[((this.cols * row) + col)] = value;
+        this.launchpad.setPadOn(row, col, this.palette[value]);
     }
 
     reset() {
@@ -250,13 +261,12 @@ class LaunchpadMiniGameOfLife {
             const row = ((index / this.cols) | 0);
             const col = ((index % this.cols) | 0);
             const rnd = Math.random();
-            if(rnd >= 0.5) {
-                table[index] = (value = GOL_ALIVE);
+            if(rnd >= 0.50) {
+                this.set(row, col, GOL_IS_ALIVE);
             }
             else {
-                table[index] = (value = GOL_EMPTY);
+                this.set(row, col, GOL_IS_EMPTY);
             }
-            this.set(row, col, value);
         });
     }
 
@@ -269,45 +279,44 @@ class LaunchpadMiniGameOfLife {
         };
         const count = (row, col) => {
             let neighbors = 0;
-            neighbors += (get((row - 1), (col - 1)) == GOL_ALIVE ? 1 : 0);
-            neighbors += (get((row - 1), (col | 0)) == GOL_ALIVE ? 1 : 0);
-            neighbors += (get((row - 1), (col + 1)) == GOL_ALIVE ? 1 : 0);
-            neighbors += (get((row | 0), (col - 1)) == GOL_ALIVE ? 1 : 0);
-            neighbors += (get((row | 0), (col | 0)) == GOL_ALIVE ? 1 : 0);
-            neighbors += (get((row | 0), (col + 1)) == GOL_ALIVE ? 1 : 0);
-            neighbors += (get((row + 1), (col - 1)) == GOL_ALIVE ? 1 : 0);
-            neighbors += (get((row + 1), (col | 0)) == GOL_ALIVE ? 1 : 0);
-            neighbors += (get((row + 1), (col + 1)) == GOL_ALIVE ? 1 : 0);
+            neighbors += (get((row - 1), (col - 1)) == GOL_IS_ALIVE ? 1 : 0);
+            neighbors += (get((row - 1), (col | 0)) == GOL_IS_ALIVE ? 1 : 0);
+            neighbors += (get((row - 1), (col + 1)) == GOL_IS_ALIVE ? 1 : 0);
+            neighbors += (get((row | 0), (col - 1)) == GOL_IS_ALIVE ? 1 : 0);
+            neighbors += (get((row | 0), (col + 1)) == GOL_IS_ALIVE ? 1 : 0);
+            neighbors += (get((row + 1), (col - 1)) == GOL_IS_ALIVE ? 1 : 0);
+            neighbors += (get((row + 1), (col | 0)) == GOL_IS_ALIVE ? 1 : 0);
+            neighbors += (get((row + 1), (col + 1)) == GOL_IS_ALIVE ? 1 : 0);
             return neighbors;
         };
+        let updated = false;
         this.state.forEach((value, index, table) => {
             const row = ((index / this.cols) | 0);
             const col = ((index % this.cols) | 0);
             const neighbors = count(row, col);
-            if(value == GOL_ALIVE) {
-                if((neighbors == 2) || (neighbors == 3)) {
-                    table[index] = (value = GOL_ALIVE);
+            if(value == GOL_IS_ALIVE) {
+                if((neighbors >= GOL_MIN_ALIVE) && (neighbors <= GOL_MAX_ALIVE)) {
+                    this.set(row, col, GOL_IS_ALIVE);
                 }
                 else {
-                    if(--value < 0) {
-                        value = 0;
-                    }
-                    table[index] = value;
+                    this.set(row, col, (value - 1));
                 }
             }
             else {
-                if(neighbors == 3) {
-                    table[index] = (value = GOL_ALIVE);
+                if(neighbors == GOL_MAX_ALIVE) {
+                    this.set(row, col, GOL_IS_ALIVE);
                 }
                 else {
-                    if(--value < 0) {
-                        value = 0;
-                    }
-                    table[index] = value;
+                    this.set(row, col, (value - 1));
                 }
             }
-            this.set(row, col, value);
+            if(table[index] != state[index]) {
+                updated = true;
+            }
         });
+        if(updated == false) {
+            this.reset();
+        }
     }
 
     play() {
@@ -326,11 +335,11 @@ class LaunchpadMiniGameOfLife {
 }
 
 // ---------------------------------------------------------------------------
-// LaunchpadMiniController
+// LaunchpadMiniView
 // ---------------------------------------------------------------------------
 
-class LaunchpadMiniController {
-    constructor() {
+class LaunchpadMiniView {
+    constructor(controller) {
         const $ = (identifier) => {
             const selector = identifier.charAt(0);
             if(selector == '#') {
@@ -342,92 +351,128 @@ class LaunchpadMiniController {
             return document.getElementsByName(identifier);
         };
 
-        this.controls = {};
-        this.controls.start    = $('#lp-start');
-        this.controls.reset    = $('#lp-reset');
-        this.controls.check    = $('#lp-check');
-        this.controls.clear    = $('#lp-clear');
-        this.controls.play     = $('#gol-play');
-        this.controls.stop     = $('#gol-stop');
-        this.controls.flush    = $('#con-flush');
-        this.controls.textarea = $('#con-textarea');
-        this.launchpad         = new LaunchpadMini(this);
-        this.gameoflife        = new LaunchpadMiniGameOfLife(this.launchpad);
+        this.controller = controller;
+        this.lp_start   = $('#lp-start');
+        this.lp_reset   = $('#lp-reset');
+        this.lp_check   = $('#lp-check');
+        this.lp_clear   = $('#lp-clear');
+        this.gol_play   = $('#gol-play');
+        this.gol_stop   = $('#gol-stop');
+        this.log_flush  = $('#log-flush');
+        this.log_panel  = $('#log-panel');
 
-        this.controls.start.addEventListener('click', () => { this.launchpad.start(); });
-        this.controls.reset.addEventListener('click', () => { this.launchpad.reset(); });
-        this.controls.check.addEventListener('click', () => { this.launchpad.check(); });
-        this.controls.clear.addEventListener('click', () => { this.launchpad.clear(); });
-        this.controls.play.addEventListener('click', () => { this.gameoflife.play(); });
-        this.controls.stop.addEventListener('click', () => { this.gameoflife.stop(); });
-        this.controls.flush.addEventListener('click', () => { this.flush(); });
-
-        this.flush();
-        this.gameoflife.reset();
+        this.lp_start.addEventListener ('click', () => { controller.onStart(); });
+        this.lp_reset.addEventListener ('click', () => { controller.onReset(); });
+        this.lp_check.addEventListener ('click', () => { controller.onCheck(); });
+        this.lp_clear.addEventListener ('click', () => { controller.onClear(); });
+        this.gol_play.addEventListener ('click', () => { controller.onPlay();  });
+        this.gol_stop.addEventListener ('click', () => { controller.onStop();  });
+        this.log_flush.addEventListener('click', () => { controller.onFlush(); });
     }
+}
 
-    flush() {
-        this.controls.textarea.value = '';
-        this.print('Launchpad Mini Controller');
+// ---------------------------------------------------------------------------
+// LaunchpadMiniApp
+// ---------------------------------------------------------------------------
+
+class LaunchpadMiniApp {
+    constructor() {
+        this.launchpad = new LaunchpadMini(this);
+        this.view      = new LaunchpadMiniView(this);
+        this.game      = new LaunchpadMiniGameOfLife(this.launchpad);
+        this.onFlush();
     }
 
     print(text) {
-        this.controls.textarea.value += text + '\n';
-        const length = this.controls.textarea.value.length;
-        this.controls.textarea.setSelectionRange(length, length);
+        const log_panel = this.view.log_panel;
+        log_panel.value += text + '\n';
+        const length = log_panel.value.length;
+        log_panel.setSelectionRange(length, length);
+    }
+
+    onStart() {
+        this.launchpad.start();
+    }
+
+    onReset() {
+        this.launchpad.reset();
+    }
+
+    onCheck() {
+        this.launchpad.check();
+    }
+
+    onClear() {
+        this.launchpad.clear();
+    }
+
+    onPlay() {
+        this.game.play();
+    }
+
+    onStop() {
+        this.game.stop();
+    }
+
+    onFlush() {
+        this.view.log_panel.value = '';
+        this.print('Welcome to the Launchpad Mini controller');
     }
 
     onNoteOff(message) {
-        const channel  = (message[0] & 0x0f);
-        const note     = (message[1] & 0x7f);
-        const velocity = (message[2] & 0x7f);
-        const red      = ((velocity >> 5) & 3);
-        const green    = ((velocity >> 3) & 3);
-        const color    = this.launchpad.color(red, green);
-        this.print('NoteOff' + ', channel=' + channel + ', note=' + note + ', velocity=' + velocity);
-        this.launchpad.sendNoteOff(note, color);
+        const launchpad = this.launchpad;
+        const channel   = (message[0] & 0x0f);
+        const note      = (message[1] & 0x7f);
+        const velocity  = (message[2] & 0x7f);
+        const red       = ((velocity >> 5) & 3);
+        const green     = ((velocity >> 3) & 3);
+        const color     = launchpad.color(red, green);
+        this.print('Message: ' + 'NoteOff' + ', channel=' + channel + ', note=' + note + ', velocity=' + velocity);
+        launchpad.sendNoteOff(note, color);
     }
 
     onNoteOn(message) {
-        const channel  = (message[0] & 0x0f);
-        const note     = (message[1] & 0x7f);
-        const velocity = (message[2] & 0x7f);
-        const red      = ((velocity >> 5) & 3);
-        const green    = ((velocity >> 3) & 3);
-        const color    = this.launchpad.color(red, green);
-        this.print('NoteOn' + ', channel=' + channel + ', note=' + note + ', velocity=' + velocity);
-        this.launchpad.sendNoteOn(note, color);
+        const launchpad = this.launchpad;
+        const channel   = (message[0] & 0x0f);
+        const note      = (message[1] & 0x7f);
+        const velocity  = (message[2] & 0x7f);
+        const red       = ((velocity >> 5) & 3);
+        const green     = ((velocity >> 3) & 3);
+        const color     = launchpad.color(red, green);
+        this.print('Message: ' + 'NoteOn' + ', channel=' + channel + ', note=' + note + ', velocity=' + velocity);
+        launchpad.sendNoteOn(note, color);
     }
 
     onAftertouch(message) {
-        this.print('Aftertouch');
+        this.print('Message: ' + 'Aftertouch');
     }
 
     onControlChange(message) {
+        const launchpad  = this.launchpad;
         const channel    = (message[0] & 0x0f);
         const controller = (message[1] & 0xff);
         const data       = (message[2] & 0xff);
         const red        = ((data >> 5) & 3);
         const green      = ((data >> 3) & 3);
-        const color      = this.launchpad.color(red, green);
-        this.print('ControlChange' + ', channel=' + channel + ', controller=0x' + controller.toString(16) + ', data=0x' + data.toString(16));
-        this.launchpad.sendControlChange(controller, data);
+        const color      = launchpad.color(red, green);
+        this.print('Message: ' + 'ControlChange' + ', channel=' + channel + ', controller=0x' + controller.toString(16) + ', data=0x' + data.toString(16));
+        launchpad.sendControlChange(controller, data);
     }
 
     onProgramChange(message) {
-        this.print('ProgramChange');
+        this.print('Message: ' + 'ProgramChange');
     }
 
     onChannelPressure(message) {
-        this.print('ChannelPressure');
+        this.print('Message: ' + 'ChannelPressure');
     }
 
     onPitchBend(message) {
-        this.print('PitchBend');
+        this.print('Message: ' + 'PitchBend');
     }
 
     onSystemControl(message) {
-        this.print('SystemControl');
+        this.print('Message: ' + 'SystemControl');
     }
 }
 
@@ -435,7 +480,7 @@ class LaunchpadMiniController {
 // let's go!
 // ---------------------------------------------------------------------------
 
-const controller = new LaunchpadMiniController();
+const application = new LaunchpadMiniApp();
 
 // ---------------------------------------------------------------------------
 // End-Of-File

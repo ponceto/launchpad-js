@@ -24,31 +24,26 @@ body > footer {
 }
 
 body > main {
-    max-width: 768px;
-    margin-left: auto;
-    margin-right: auto;
 }
 
 fieldset {
-    margin-bottom: 1.5em;
-    padding: 1em;
+    border: 1px solid var(--pico-form-element-border-color);
+    border-radius: var(--pico-border-radius);
+    padding: var(--pico-spacing);
 }
 
 fieldset button {
-    font-size: large;
+    font-family: monospace;
+    font-size: smaller;
 }
 
-fieldset input[type=range] {
-    width: 100%;
+#log-panel {
+    font-family: monospace;
+    font-size: smaller;
 }
 
-#con-flush {
+#log-flush {
     display: block;
-}
-
-#con-textarea {
-    display: block;
-    width: 99%;
-    width: -moz-available;
-    width: -webkit-fill-available;
+    margin-left: auto;
+    margin-right: auto;
 }
